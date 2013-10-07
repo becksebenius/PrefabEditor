@@ -23,7 +23,7 @@ using System.Linq;
 using System.IO;
 
 // Scriptable Object used to find monoscript, which aids us in finding
-//	the PrefabEditor class
+//	the PrefabEditor scene
 // This lets us put the PrefabEditor folder wherever we like :)
 public class PrefabEditor : EditorWindow 
 {
