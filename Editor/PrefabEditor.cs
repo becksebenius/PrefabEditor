@@ -20,18 +20,57 @@
 using UnityEngine;
 using UnityEditor;
 using System.Linq;
+using System.IO;
 
 // Scriptable Object used to find monoscript, which aids us in finding
 //	the PrefabEditor class
 // This lets us put the PrefabEditor folder wherever we like :)
-public class PrefabEditor : ScriptableObject {}
+public class PrefabEditor : EditorWindow 
+{
+	public string previousScenePath;
+	public string previousSceneName;
+	
+	void OnEnable ()
+	{
+		minSize = new Vector2(220, 40);
+		maxSize = minSize;
+		title = "Prefab Editor";
+	}
+	
+	void OnGUI ()
+	{
+		if(GUI.Button(new Rect(0,0,minSize.x, minSize.y), "Back To " + previousSceneName))
+		{
+			if(EditorApplication.SaveCurrentSceneIfUserWantsTo())
+			{
+				EditorApplication.OpenScene(previousScenePath);
+				Close();
+			}
+		}
+	}
+	
+	void Update ()
+	{
+		if(EditorApplication.currentScene != PrefabEditorAssetProcessor.scenePath)
+		{
+			Close();
+		}
+	}
+	
+	public void SetPreviousScene (string path)
+	{
+		var fileinfo = new FileInfo(path);
+		previousSceneName = fileinfo.Name;
+		previousScenePath = path;
+	}
+}
 
 [InitializeOnLoad]
 public class PrefabEditorAssetProcessor : UnityEditor.AssetModificationProcessor 
 {
 	const string MenuItemPath = "Assets/Edit Prefab %e";
 	
-	static string scenePath;
+	public static string scenePath;
 	static PrefabEditorAssetProcessor ()
 	{
 		// Create prefab editor instance so that we can find it's monoscript location
@@ -52,10 +91,17 @@ public class PrefabEditorAssetProcessor : UnityEditor.AssetModificationProcessor
 	{
 		var prefab = Selection.activeGameObject;
 		
-		if(!prefab) return false;
-		
-		if(PrefabUtility.GetPrefabType(prefab) != PrefabType.Prefab)
+		// No gameobject selected
+		if(!prefab) 
+		{
 			return false;
+		}
+		
+		// Selected game object is not a prefab
+		if(PrefabUtility.GetPrefabType(prefab) != PrefabType.Prefab)
+		{
+			return false;
+		}
 		
 		return true;
 	}
@@ -68,16 +114,28 @@ public class PrefabEditorAssetProcessor : UnityEditor.AssetModificationProcessor
 	
 	public static void EditPrefab (GameObject prefab)
 	{
-		if(!prefab) 
+		//Passed a null reference
+		if(!prefab)
+		{
 			return;
+		}
 		
-		//Make sure we're editing a prefab
+		// Is game object a prefab?
 		if(PrefabUtility.GetPrefabType(prefab) != PrefabType.Prefab)
+		{
 			return;
+		}
 		
-		//Saving niceness in case you're currently editing a different scene
+		// Save currently open scene
 		if(!EditorApplication.SaveCurrentSceneIfUserWantsTo())
 			return;
+		
+		// Open the backtrack window
+		if(EditorApplication.currentScene != scenePath)
+		{
+			var pEditor = EditorWindow.GetWindow<PrefabEditor>(true);
+			pEditor.SetPreviousScene(EditorApplication.currentScene);
+		}
 		
 		//Open the PrefabEditor scene
 		if(!EditorApplication.OpenScene(scenePath))
@@ -111,11 +169,15 @@ public class PrefabEditorAssetProcessor : UnityEditor.AssetModificationProcessor
 	{
 		//Only perform prefab saving if we're in the PrefabEditor scene
 		if(EditorApplication.currentScene != scenePath)
+		{
 			return paths;
+		}
 		
 		//Make sure this save pass is actually trying to save the PrefabEditor scene
 		if(!paths.Contains(scenePath))
+		{
 			return paths;
+		}
 		
 		//If we hit this point, it means we have the prefab editor open
 		//	and it is in the process of being saved.
@@ -126,11 +188,15 @@ public class PrefabEditorAssetProcessor : UnityEditor.AssetModificationProcessor
 			
 			//Is this gameobject a prefab instance?
 			if(PrefabUtility.GetPrefabType(go) != PrefabType.PrefabInstance)
+			{
 				continue;
+			}
 			
 			//Is this the root of the prefab?
 			if(PrefabUtility.FindPrefabRoot(go) != go)
+			{
 				continue;
+			}
 			
 			//Apply changes
 			PrefabUtility.ReplacePrefab(go, PrefabUtility.GetPrefabParent(go), ReplacePrefabOptions.ConnectToPrefab);
